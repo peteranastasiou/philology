@@ -24,7 +24,11 @@ name:
 
 *   inh+=? seems to repeat an above inh? can be ignored?
 
-*   root=ultimate root. does it skip step? - need to check
+    root=ultimate root e.g. pie
+      not listed in order with der/inh
+      potential to ignore this one as sometimes also listed in der...
+      is root always pie (ine-pro)? no, can be e.g. Arabic
+      is root always repeated in der. most of the time but not always.
         args: same as for der
 
 *   bor=borrowed? not in line with der/inh (refer eng:troll)!
@@ -60,7 +64,7 @@ name:
     sup: not meaningful?
     doublet: what is a doublet?
     senseno: what is a senseno?
-
+    many more template names, too many to investigate
 """
 
 import json
@@ -77,11 +81,17 @@ def pprint(o):
     print(json.dumps(o, indent=2))
 
 # 1 line per json object
-in_file = open("snippet.json", "r")  # etym1
+in_file = open("snippet2.json", "r")  # etym1
 out_file = open("roots.json", "w")
 
 roots = set()
 relations = set()
+
+# Short hand to get a template arg (if it exists)
+def targ(t, key):
+    if key not in t["args"]:
+        return None
+    return t["args"][key]
 
 count = 0
 for line in in_file:
@@ -96,13 +106,28 @@ for line in in_file:
 
     # Only print out etymologies incl template_name we are interested in
     if filter_name in template_names:
+        # print("\n\n" + d["lang"] + ":" + d["word"])
+        # print(d["etymology_text"])
 
-        print("\n\n" + d["lang"] + ":" + d["word"])
-        print(d["etymology_text"])
-        print(d)
+        # investigate: is root always duplicated as a der?
+        root_lang = ""
+        root_word = ""
         for t in tmpl:
-            if t["name"] not in ignore_templates:
-                pprint(t)
+            if t["name"] == "root": # not in ignore_templates:
+                root_lang = targ(t,"2")
+                root_word = targ(t, "3")
+        found_root = False
+        for t in tmpl:
+            if t["name"] in ["der", "inh"]:
+                if targ(t, "2") == root_lang and targ(t, "3") == root_word:
+                    found_root = True
+
+        if not found_root:
+            print("\n\n" + d["lang"] + ":" + d["word"])
+            print(d["etymology_text"])
+            for t in tmpl:
+                if t["name"] in ["der", "root"]: # not in ignore_templates:
+                    pprint(t)
 
 # pprint(others)
 
