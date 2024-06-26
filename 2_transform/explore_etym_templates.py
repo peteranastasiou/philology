@@ -31,7 +31,9 @@ name:
       is root always repeated in der. most of the time but not always.
         args: same as for der
 
-*   bor=borrowed? not in line with der/inh (refer eng:troll)!
+*   bor=borrowed?
+      tricky - sometimes not in line with der/inh (refer eng:troll)!
+               and sometimes in line (refer eng:terminal)
         args:
             1: lang code of current
             2: lang code of parent
@@ -71,7 +73,7 @@ import json
 # from tqdm import tqdm
 
 # Filter on etymologies which have this template name:
-filter_name = "root"
+filter_name = "bor"
 
 # Don't print these templates
 ignore_templates = ["nb...", "glossary", "cog", "etymid"]
@@ -106,28 +108,11 @@ for line in in_file:
 
     # Only print out etymologies incl template_name we are interested in
     if filter_name in template_names:
-        # print("\n\n" + d["lang"] + ":" + d["word"])
-        # print(d["etymology_text"])
-
-        # investigate: is root always duplicated as a der?
-        root_lang = ""
-        root_word = ""
+        print("\n\n" + d["lang"] + ":" + d["word"])
+        print(d["etymology_text"])
         for t in tmpl:
-            if t["name"] == "root": # not in ignore_templates:
-                root_lang = targ(t,"2")
-                root_word = targ(t, "3")
-        found_root = False
-        for t in tmpl:
-            if t["name"] in ["der", "inh"]:
-                if targ(t, "2") == root_lang and targ(t, "3") == root_word:
-                    found_root = True
-
-        if not found_root:
-            print("\n\n" + d["lang"] + ":" + d["word"])
-            print(d["etymology_text"])
-            for t in tmpl:
-                if t["name"] in ["der", "root"]: # not in ignore_templates:
-                    pprint(t)
+            if t["name"] not in ignore_templates:
+                pprint(t)
 
 # pprint(others)
 
