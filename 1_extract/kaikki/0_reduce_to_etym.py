@@ -5,7 +5,7 @@ from collections import Counter
 # scrape just english words
 # look at languages involved in etymology
 # scrape those langauges too!?
-langs = ["en", "enm", "ang"]
+langs = ["en"] #, "enm", "ang"]
 
 # 1 line per json object
 in_file = open("resources/raw-wiktextract-data.json", "r")
@@ -59,7 +59,7 @@ for line in tqdm(in_file):
         "lang": d["lang"],
         "lang_code": d["lang_code"],
         "etymology_text": d["etymology_text"],
-        "etymology_templates": d["etymology_templates"],   # Can use name: der/ name: root to determine etymology!
+        "etymology_templates": d["etymology_templates"],
         "glosses": defns
     }
     json.dump(obj, out_file)
