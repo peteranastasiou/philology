@@ -34,7 +34,15 @@ ignored_templates = [
     "cog",
     "ncog",
     "smallcaps",
-    "doublet"
+    "doublet",
+]
+
+prop_names = [
+    "pos", # part of speech e.g. noun
+    "id", # ??? needs investigation
+    "t", # translation
+    "lit", # literal translation
+    "tr", # transliteration
 ]
 
 def pprint(o):
@@ -46,8 +54,10 @@ def arg(t, key):
         return None
     return t["args"][key]
 
-def parg(key, arg):
-    return f" | {key}={arg}" if arg else ""
+def arg_as_prop(o, t, key, prop_key=None):
+    a = arg(t, key)
+    if a:
+        o[prop_key or key] = a
 
 def parse_parent(t):
     # arguments: 1=curr-lang 2=parent-lang 3=parent-word
@@ -62,18 +72,11 @@ def parse_parent(t):
         return
 
     # Properties
-    pos = arg(t, "pos")
-    id = arg(t, "id")
-    translation = arg(t, "t")
-    literal_translation = arg(t, "lit")
-    transliteration = arg(t, "tr")
+    props = {}
+    for p in prop_names:
+        arg_as_prop(props, t, p)
 
-    s = parg("pos", pos)
-    s += parg("id", id)
-    s += parg("tlat", translation)
-    s += parg("ltlat", literal_translation)
-    s += parg("tlit", transliteration)
-    print(f"parent: {lang} <-[{relationship}]- {parent_lang}:{parent_word}{s}")
+    print(f"parent: {lang} <-[{relationship}]- {parent_lang}:{parent_word} {props}")
     #pprint(t)
 
 def parse_combination(t):
@@ -81,8 +84,27 @@ def parse_combination(t):
     # optional params: posX, idX where X is 1,2,...n corresponding to parent word
     # where parent word MAY have lang-code: prefix (only confirmed for affix in the doc)
     # Note: watch out for automatic addition of hyphen to parts
-    print("combination:")
-    #pprint(t)
+    relationship = combination_templates[t["name"]]
+    lang = arg(t, "1")  # Mostly useless, just indicates language of page
+    words = []
+    pprint(t)
+    words.append({"word": arg(t, "2")})
+    words.append({"word": arg(t, "3")})
+    # iterate through all contributing words
+    for i in range(4, 10):
+        w = arg(t, f"{i}")
+        if not w:
+            break
+        words.append({"word": w})
+
+    for i, w in enumerate(words):
+        for p in prop_names:
+            # Lookup props by index e.g. pos1 for word one
+            arg_as_prop(w, t, f"{p}{i+1}", p)
+    print(f"combination: {lang} <-[{relationship}]-")
+    for w in words:
+        print(f" - {w}")
+
 
 def parse(word_id, t):
     name = t["name"]
