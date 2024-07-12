@@ -45,6 +45,14 @@ prop_names = [
     "tr", # transliteration
 ]
 
+known_langs = set()
+f = open("langcodes.tsv")
+for i, line in enumerate(f):
+    if i != 0:
+        parts = line.split('\t')
+        known_langs.add(parts[0])
+unknown_langs = set()
+
 def pprint(o):
     print(json.dumps(o, indent=2))
 
@@ -59,7 +67,7 @@ def arg_as_prop(o, t, key, prop_key=None):
     if a:
         o[prop_key or key] = a
 
-def parse_parent(t):
+def parse_parent(word_id, t):
     # arguments: 1=curr-lang 2=parent-lang 3=parent-word
     # optional args: pos, id
     relationship = parent_templates[t["name"]]
@@ -71,12 +79,18 @@ def parse_parent(t):
         # Skip it, no word given
         return
 
+    if parent_lang not in known_langs:
+        print("UNKNOWN LANG:" + parent_lang + " for "+word_id)
+        # pprint(t)
+        unknown_langs.add(parent_lang)
+        return
+
     # Properties
     props = {}
     for p in prop_names:
         arg_as_prop(props, t, p)
 
-    print(f"parent: {lang} <-[{relationship}]- {parent_lang}:{parent_word} {props}")
+    # print(f"parent: {lang} <-[{relationship}]- {parent_lang}:{parent_word} {props}")
     #pprint(t)
 
 def parse_combination(t):
@@ -87,7 +101,7 @@ def parse_combination(t):
     relationship = combination_templates[t["name"]]
     lang = arg(t, "1")  # Mostly useless, just indicates language of page
     words = []
-    pprint(t)
+    # pprint(t)
     words.append({"word": arg(t, "2")})
     words.append({"word": arg(t, "3")})
     # iterate through all contributing words
@@ -97,29 +111,32 @@ def parse_combination(t):
             break
         words.append({"word": w})
 
+    # TODO check if any words have a lang prefix!
+
     for i, w in enumerate(words):
         for p in prop_names:
             # Lookup props by index e.g. pos1 for word one
             arg_as_prop(w, t, f"{p}{i+1}", p)
-    print(f"combination: {lang} <-[{relationship}]-")
-    for w in words:
-        print(f" - {w}")
+    # print(f"combination: {lang} <-[{relationship}]-")
+    # for w in words:
+    #     print(f" - {w}")
 
 
 def parse(word_id, t):
     name = t["name"]
     if name in parent_templates:
-        parse_parent(t)
+        parse_parent(word_id, t)
     elif name in combination_templates:
         parse_combination(t)
     elif name in ignored_templates:
         pass
     else:
-        print(f"unused template: {name}")
+        pass
+        # print(f"unused template: {name}")
 
 
 # 1 line per json object
-in_file = open("snippet.json", "r")
+in_file = open("etym1.json", "r")
 out_file = open("roots.json", "w")
 
 for line in in_file:
@@ -130,8 +147,10 @@ for line in in_file:
     word_id = f"{lang}:{word}:{pos}"
     templates = d["etymology_templates"]
 
-    print("__________")
-    print(word_id)
-    print('"'+d["etymology_text"]+'"')
+    # print("__________")
+    # print(word_id)
+    # print('"'+d["etymology_text"]+'"')
     for t in templates:
         parse(word_id, t)
+
+print("Unknown langs: "+str(unknown_langs))
