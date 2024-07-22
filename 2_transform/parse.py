@@ -69,11 +69,12 @@ def arg_as_prop(o, t, key, prop_key=None):
         o[prop_key or key] = a
 
 def parse_word(t, key):
-    """Outputs word + attributes"""
+    """
+        Outputs word + attributes
+        Note: raw is of the form: [lang:]word[#disambiguator][<attr:value>]*[<tag>value</tag>]*
+    """
     raw: str = arg(t, key)
     if not raw: return None, None
-
-    # raw is of the form: [lang:]word[#disambiguator][<attr:value>]*[<tag>value</tag>]*
 
     # Separate prefix from tags
     prefix = raw
@@ -84,7 +85,7 @@ def parse_word(t, key):
         tags = raw[i:]
 
     if not prefix:
-        print(f"Failed for word: {raw.encode('utf-8')}")
+        print(f"Failed to parse word: {raw.encode('utf-8')}")
         return None, None
 
     attr = {}
@@ -95,9 +96,6 @@ def parse_word(t, key):
         lang = prefix[:i]
         prefix = prefix[i+1:]
         attr['lang'] = lang
-        # print(raw)
-        # print("  [", prefix, "]:", attr)
-        # print("")
 
     # Strip off disambiguator if present
     i = prefix.find("#")
@@ -105,13 +103,10 @@ def parse_word(t, key):
         disambiguator = prefix[i+1:]
         prefix = prefix[:i]
         attr['disambiguator'] = disambiguator
-        # print(raw)
-        # print("  [", prefix, "]:", attr)
-        # print("")
 
     if tags:
         if "</" in tags:
-            print("Open/close attributes are not supported:")
+            print("Open/close tags are not supported:")
             print("  ", prefix, tags)
         else:
             # print(raw.encode("utf-8"))
@@ -122,9 +117,6 @@ def parse_word(t, key):
                     print("Invalid tag: ", tag)
                     continue
                 attr[parts[0]] = parts[1]
-        # print(raw)
-        # print("  [", prefix, "]:", attr)
-        # print("")
 
     return prefix, attr
 
