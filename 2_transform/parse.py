@@ -70,44 +70,44 @@ def arg_as_prop(o, t, key, prop_key=None):
 
 def parse_word(t, key):
     """
-        Outputs word + attributes
+        Outputs word, props
         Note: raw is of the form: [lang:]word[#disambiguator][<attr:value>]*[<tag>value</tag>]*
     """
     raw: str = arg(t, key)
     if not raw: return None, None
 
     # Separate prefix from tags
-    prefix = raw
+    word = raw
     tags = ""
     i = raw.find("<")
     if i >= 0:
-        prefix = raw[:i]
+        word = raw[:i]
         tags = raw[i:]
 
-    if not prefix:
+    if not word:
         print(f"Failed to parse word: {raw.encode('utf-8')}")
         return None, None
 
-    attr = {}
+    props = {}
 
     # Strip off lang code if present
-    i = prefix.find(":")
+    i = word.find(":")
     if i > 0:
-        lang = prefix[:i]
-        prefix = prefix[i+1:]
-        attr['lang'] = lang
+        lang = word[:i]
+        word = word[i+1:]
+        props['lang'] = lang
 
-    # Strip off disambiguator if present
-    i = prefix.find("#")
+    # Strip off disambiguator hash if present - is this a page section reference?
+    i = word.find("#")
     if i > 0:
-        disambiguator = prefix[i+1:]
-        prefix = prefix[:i]
-        attr['disambiguator'] = disambiguator
+        disambiguator = word[i+1:]
+        word = word[:i]
+        props['disambiguator'] = disambiguator
 
     if tags:
         if "</" in tags:
             print("Open/close tags are not supported:")
-            print("  ", prefix, tags)
+            print("  ", word, tags)
         else:
             # print(raw.encode("utf-8"))
             for tag in re.findall("<[^>]*>", tags):
@@ -116,9 +116,9 @@ def parse_word(t, key):
                 if len(parts) != 2:
                     print("Invalid tag: ", tag)
                     continue
-                attr[parts[0]] = parts[1]
+                props[parts[0]] = parts[1]
 
-    return prefix, attr
+    return word, props
 
 
 def parse_parent(word_id, t):
@@ -127,12 +127,7 @@ def parse_parent(word_id, t):
     relationship = parent_templates[t["name"]]
     lang = arg(t, "1")  # Mostly useless, just indicates language of page
     parent_lang = arg(t, "2")
-    parent_word = arg(t, "3")
-
-    parse_word(t, "3")
-    # if parent_word and "<" in parent_word:
-    #     pprint(word_id)
-    #     print("inline <>: "+parent_word)
+    parent_word, props = parse_word(t, "3")
 
     if not parent_word or parent_word == "-":
         # Skip it, no word given
@@ -144,12 +139,11 @@ def parse_parent(word_id, t):
         unknown_langs.add(parent_lang)
         return
 
-    # Properties
-    props = {}
+    # Pull additional properties
     for p in prop_names:
         arg_as_prop(props, t, p)
 
-    # print(f"parent: {lang} <-[{relationship}]- {parent_lang}:{parent_word} {props}")
+    print(f"parent-type: {word_id} {lang} <-[{relationship}]- {parent_lang}:{parent_word} {props}")
     #pprint(t)
 
 def parse_combination(word_id, t):
@@ -164,8 +158,8 @@ def parse_combination(word_id, t):
     words.append({"word": arg(t, "2")})
     words.append({"word": arg(t, "3")})
 
-    parse_word(t, "2")
-    parse_word(t, "3")
+    # word1, attr1 = parse_word(t, "2")
+    # word2, attr2 = parse_word(t, "3")
 
     # iterate through all contributing words
     for i in range(4, 10):
@@ -175,11 +169,7 @@ def parse_combination(word_id, t):
         words.append({"word": w})
 
     for i, w in enumerate(words):
-        # look for lang code
         word = w['word']
-        # if word and "<" in word:
-        #     pprint(word_id)
-        #     print("interesting: "+ word)
 
         for p in prop_names:
             # Lookup props by index e.g. pos1 for word one
