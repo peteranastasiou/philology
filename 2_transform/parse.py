@@ -54,8 +54,18 @@ for i, line in enumerate(f):
         known_langs.add(parts[0])
 unknown_langs = set()
 
+# 1 line per json object
+in_file = open("etym1.json", "r")
+out_file = open("relationships.json", "w")
+
 def pprint(o):
     print(json.dumps(o, indent=2))
+
+def format_word_id(word):
+    s = f"{word['word']}:{word['lang']}"
+    if "pos" in word:
+        return f"{s}#{word['pos']}"
+    return s
 
 # Short hand to get a template arg (if it exists)
 def arg(t, key):
@@ -72,6 +82,7 @@ def parse_word(t, key):
     """
         Outputs word, props
         Note: raw is of the form: [lang:]word[#disambiguator][<attr:value>]*[<tag>value</tag>]*
+        Multiple aliases may be listed separated by ", "
     """
     raw: str = arg(t, key)
     if not raw: return None, None
@@ -120,94 +131,125 @@ def parse_word(t, key):
 
     return word, props
 
+def parse_word_as_dict(t, arg):
+    w, p = parse_word(t, arg)
+    if not w:
+        return None
+    p["word"] = w
+    return p
 
-def parse_parent(word_id, t):
+def parse_parent(child_word: dict, t: dict) -> dict:
     # arguments: 1=curr-lang 2=parent-lang 3=parent-word
     # optional args: pos, id
     relationship = parent_templates[t["name"]]
     lang = arg(t, "1")  # Mostly useless, just indicates language of page
     parent_lang = arg(t, "2")
-    parent_word, props = parse_word(t, "3")
+    parent_word = parse_word_as_dict(t, "3")
 
-    if not parent_word or parent_word == "-":
+    if not parent_word or parent_word['word'] == "-":
         # Skip it, no word given
-        return
+        return None
 
     if parent_lang not in known_langs:
-        print("UNKNOWN LANG:" + parent_lang + " for "+word_id)
+        print("UNKNOWN LANG:" + parent_lang + " for " + str(child_word))
         # pprint(t)
         unknown_langs.add(parent_lang)
-        return
+        return None
+
+    parent_word["lang"] = parent_lang
 
     # Pull additional properties
     for p in prop_names:
-        arg_as_prop(props, t, p)
+        arg_as_prop(parent_word, t, p)
 
-    print(f"parent-type: {word_id} {lang} <-[{relationship}]- {parent_lang}:{parent_word} {props}")
-    #pprint(t)
+    print(f"{format_word_id(child_word):30s} <--{relationship:10s} {format_word_id(parent_word)}")
 
-def parse_combination(word_id, t):
+    # Write out to file
+    out_obj = {
+        "child_word": child_word,
+        "relationship": relationship,
+        "parent_word": parent_word
+    }
+    out_str = json.dumps(out_obj)
+    out_file.write(out_str+"\n")
+
+    return parent_word
+
+def parse_combination(child_word: dict, t: dict) -> dict:
     # format: 1=curr-lang 2=parent-word 3=parent-word [n=....]
     # optional params: posX, idX where X is 1,2,...n corresponding to parent word
     # where parent word MAY have lang-code: prefix (only confirmed for affix in the doc)
     # Note: watch out for automatic addition of hyphen to parts
     relationship = combination_templates[t["name"]]
     lang = arg(t, "1")  # Mostly useless, just indicates language of page
-    words = []
-    # pprint(t)
-    words.append({"word": arg(t, "2")})
-    words.append({"word": arg(t, "3")})
 
-    # word1, attr1 = parse_word(t, "2")
-    # word2, attr2 = parse_word(t, "3")
+    # There are at least 2 words (args "2" & "3")
+    word1 = parse_word_as_dict(t, "2")
+    word2 = parse_word_as_dict(t, "3")
 
-    # iterate through all contributing words
+    if not word1 or not word2:
+        print("Cannot parse combination: ", word1, "+", word2)
+        return None
+
+    words = [word1, word2]
+
+    # iterate through all remaining words (args "4", ...)
     for i in range(4, 10):
-        w = arg(t, f"{i}")
+        w = parse_word_as_dict(t, f"{i}")
         if not w:
             break
-        words.append({"word": w})
+        words.append(w)
 
     for i, w in enumerate(words):
-        word = w['word']
-
         for p in prop_names:
             # Lookup props by index e.g. pos1 for word one
             arg_as_prop(w, t, f"{p}{i+1}", p)
-    # print(f"combination: {lang} <-[{relationship}]-")
-    # for w in words:
-    #     print(f" - {w}")
 
+    # If the word has no language tag, we must assume it is the same as child
+    for w in words:
+        if "lang" not in w:
+            w["lang"] = child_word["lang"]
 
-def parse(word_id, t):
+    print(f"{format_word_id(child_word):30s} <--{relationship:10s}",
+          " + ".join([format_word_id(w) for w in words]))
+
+    return None # No future parents expected, as past diverges
+
+def parse(word: dict, t):
     name = t["name"]
     if name in parent_templates:
-        parse_parent(word_id, t)
+        return parse_parent(word, t)
     elif name in combination_templates:
-        parse_combination(word_id, t)
+        return parse_combination(word, t)
     elif name in ignored_templates:
-        pass
+        return None
     else:
-        pass
         # print(f"unused template: {name}")
+        return None
 
-
-# 1 line per json object
-in_file = open("etym1.json", "r")
-out_file = open("roots.json", "w")
 
 for line in in_file:
     d: dict = json.loads(line)
+
+    # Form the first word (the page's word)
     lang = d["lang_code"]
     word = d["word"]
     pos = d["pos"]
-    word_id = f"{lang}:{word}:{pos}"
-    templates = d["etymology_templates"]
+    child_word = {"word": word, "lang": lang, "pos": pos}
 
-    # print("__________")
-    # print(word_id)
-    # print('"'+d["etymology_text"]+'"')
-    for t in templates:
-        parse(word_id, t)
+    print("__________")
+    print(word)
+    print('"'+d["etymology_text"]+'"')
+
+    # Walk history, assuming each derived word is a parent of the previous
+    curr_word = child_word
+    for t in d["etymology_templates"]:
+        parent_word = parse(curr_word, t)
+        if parent_word is None:
+            # Skip this relationship
+            # TODO decide when to reset to child word!
+            pass
+        else:
+            curr_word = parent_word
 
 print("Unknown langs: "+str(unknown_langs))
