@@ -3,6 +3,8 @@ import json
 from tqdm import tqdm
 import re
 
+VERBOSE = False
+
 # maps of template name -> rename
 parent_templates = {
     "derived": "derived",
@@ -17,17 +19,19 @@ parent_templates = {
     "inh": "inherited",
 }
 
+# Note: templates get confusing e.g. suffix template can contain all elements of a word
+# Thus, just call everything an affix
 combination_templates = {
     "affix": "affix",
     "af": "affix",
+    "confix": "affix",
+    "con": "affix",
+    "prefix": "affix",
+    "pre": "affix",
+    "suffix": "affix",
+    "suf": "affix",
     "compound": "compound",
     "com": "compound",
-    "confix": "confix",
-    "con": "confix",
-    "prefix": "prefix",
-    "pre": "prefix",
-    "suffix": "suffix",
-    "suf": "suffix",
     "blend": "blend",
 }
 
@@ -60,6 +64,14 @@ out_file = open("relationships.json", "w")
 
 def pprint(o):
     print(json.dumps(o, indent=2))
+
+context = ""
+
+if VERBOSE:
+    vprint = print
+else:
+    def vprint(*args, **kwargs):
+        pass
 
 def format_word_id(word):
     s = f"{word['word']}:{word['lang']}"
@@ -129,6 +141,11 @@ def parse_word(t, key):
                     continue
                 props[parts[0]] = parts[1]
 
+    if ", " in word:
+        aliases = word.split(", ")
+        word = aliases[0]
+        props["aliases"] = aliases[1:]
+
     return word, props
 
 def parse_word_as_dict(t, arg):
@@ -162,7 +179,7 @@ def parse_parent(child_word: dict, t: dict) -> dict:
     for p in prop_names:
         arg_as_prop(parent_word, t, p)
 
-    print(f"{format_word_id(child_word):30s} <--{relationship:10s} {format_word_id(parent_word)}")
+    vprint(f"{format_word_id(child_word):30s} <--{relationship:10s} {format_word_id(parent_word)}")
 
     # Write out to file
     out_obj = {
@@ -187,11 +204,13 @@ def parse_combination(child_word: dict, t: dict) -> dict:
     word1 = parse_word_as_dict(t, "2")
     word2 = parse_word_as_dict(t, "3")
 
-    if not word1 or not word2:
-        print("Cannot parse combination: ", word1, "+", word2)
+    if not word1 and not word2:
+        print("Cannot parse combination: " + json.dumps(t))
         return None
 
-    words = [word1, word2]
+    words = []
+    if word1: words.append(word1)
+    if word2: words.append(word2)
 
     # iterate through all remaining words (args "4", ...)
     for i in range(4, 10):
@@ -210,8 +229,18 @@ def parse_combination(child_word: dict, t: dict) -> dict:
         if "lang" not in w:
             w["lang"] = child_word["lang"]
 
-    print(f"{format_word_id(child_word):30s} <--{relationship:10s}",
+    vprint(f"{format_word_id(child_word):30s} <--{relationship:10s}",
           " + ".join([format_word_id(w) for w in words]))
+
+    for w in words:
+        # Write out to file
+        out_obj = {
+            "child_word": child_word,
+            "relationship": relationship,
+            "parent_word": w
+        }
+        out_str = json.dumps(out_obj)
+        out_file.write(out_str+"\n")
 
     return None # No future parents expected, as past diverges
 
@@ -224,11 +253,11 @@ def parse(word: dict, t):
     elif name in ignored_templates:
         return None
     else:
-        # print(f"unused template: {name}")
+        vprint(f"Unused template: {name}")
         return None
 
 
-for line in in_file:
+for line in tqdm(in_file):
     d: dict = json.loads(line)
 
     # Form the first word (the page's word)
@@ -237,9 +266,10 @@ for line in in_file:
     pos = d["pos"]
     child_word = {"word": word, "lang": lang, "pos": pos}
 
-    print("__________")
-    print(word)
-    print('"'+d["etymology_text"]+'"')
+    vprint("__________")
+    vprint(word)
+    vprint('"'+d["etymology_text"]+'"')
+    context = word + '\n' + d['etymology_text'] + "\n" + json.dumps(d["etymology_templates"], indent=2)
 
     # Walk history, assuming each derived word is a parent of the previous
     curr_word = child_word
