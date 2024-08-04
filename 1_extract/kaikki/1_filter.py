@@ -27,10 +27,6 @@ for line in tqdm(in_file):
     if " " in word:
         continue
 
-    # Skip all single letters of the alphabet that aren't really words
-    if len(word) == 1 and word.lower() not in ["a", "i"]:
-        continue
-
     # Filter out really long words
     if len(word) > 20:
         #print(d["word"])
