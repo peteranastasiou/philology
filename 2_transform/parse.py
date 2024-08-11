@@ -2,6 +2,7 @@
 import json
 from tqdm import tqdm
 import re
+from typing import Tuple
 
 VERBOSE = False
 
@@ -50,6 +51,12 @@ prop_names = [
     "tr", # transliteration
 ]
 
+# Parsing status
+STATUS_IGNORE = 0
+STATUS_ERR = 1
+STATUS_CONTINUE = 0
+STATUS_STOP = 0
+
 known_langs = set()
 f = open("langcodes.tsv")
 for i, line in enumerate(f):
@@ -64,8 +71,6 @@ out_file = open("relationships.json", "w")
 
 def pprint(o):
     print(json.dumps(o, indent=2))
-
-context = ""
 
 if VERBOSE:
     vprint = print
@@ -155,7 +160,7 @@ def parse_word_as_dict(t, arg):
     p["word"] = w
     return p
 
-def parse_parent(child_word: dict, t: dict, source: str, depth: int) -> dict:
+def parse_parent(child_word: dict, t: dict, txt: str, source: str, depth: int) -> Tuple[int, dict]:
     # arguments: 1=curr-lang 2=parent-lang 3=parent-word
     # optional args: pos, id
     relationship = parent_templates[t["name"]]
@@ -165,13 +170,13 @@ def parse_parent(child_word: dict, t: dict, source: str, depth: int) -> dict:
 
     if not parent_word or parent_word['word'] == "-":
         # Skip it, no word given
-        return None
+        return STATUS_ERR, None
 
     if parent_lang not in known_langs:
         print("UNKNOWN LANG:" + parent_lang + " for " + str(child_word))
         # pprint(t)
         unknown_langs.add(parent_lang)
-        return None
+        return STATUS_ERR, None
 
     parent_word["lang"] = parent_lang
 
@@ -187,14 +192,15 @@ def parse_parent(child_word: dict, t: dict, source: str, depth: int) -> dict:
         "relationship": relationship,
         "parent_word": parent_word,
         "source": source,
+        "source_text": txt,
         "depth": depth
     }
     out_str = json.dumps(out_obj)
     out_file.write(out_str+"\n")
 
-    return parent_word
+    return STATUS_CONTINUE, parent_word
 
-def parse_combination(child_word: dict, t: dict, source: str, depth: int) -> dict:
+def parse_combination(child_word: dict, t: dict, txt: str, source: str, depth: int) -> Tuple[int, dict]:
     # format: 1=curr-lang 2=parent-word 3=parent-word [n=....]
     # optional params: posX, idX where X is 1,2,...n corresponding to parent word
     # where parent word MAY have lang-code: prefix (only confirmed for affix in the doc)
@@ -208,7 +214,7 @@ def parse_combination(child_word: dict, t: dict, source: str, depth: int) -> dic
 
     if not word1 and not word2:
         print("Cannot parse combination: " + json.dumps(t))
-        return None
+        return STATUS_ERR, None
 
     words = []
     if word1: words.append(word1)
@@ -241,31 +247,33 @@ def parse_combination(child_word: dict, t: dict, source: str, depth: int) -> dic
             "relationship": relationship,
             "parent_word": w,
             "source": source,
+            "source_text": txt,
             "depth": depth
         }
         out_str = json.dumps(out_obj)
         out_file.write(out_str+"\n")
 
-    return None # No future parents expected, as past diverges
+    return STATUS_STOP, None # No future parents expected, as past diverges
 
-def parse(word: dict, t: dict, src: str, depth: int):
+def parse(word: dict, t: dict, txt: str, src: str, depth: int) -> Tuple[int, dict]:
     """
     @param word the word structure
     @param t the templated params
+    @param txt the etymology text
     @param src source reference
     @param depth indicates how far along the etymology sequence of src
-    @returns new word if history is assumed to continue, or null if further parents not expected or on error
+    @returns status, parent_word
     """
     name = t["name"]
     if name in parent_templates:
-        return parse_parent(word, t, src, depth)
+        return parse_parent(word, t, txt, src, depth)
     elif name in combination_templates:
-        return parse_combination(word, t, src, depth)
+        return parse_combination(word, t, txt, src, depth)
     elif name in ignored_templates:
-        return None
+        return STATUS_IGNORE, None
     else:
         vprint(f"Unused template: {name}")
-        return None
+        return STATUS_IGNORE, None
 
 
 for line in tqdm(in_file):
@@ -276,26 +284,37 @@ for line in tqdm(in_file):
     word = d["word"]
     pos = d["pos"]
     child_word = {"word": word, "lang": lang, "pos": pos}
+    txt = d["etymology_text"]
 
     vprint("__________")
     vprint(word)
     vprint('"'+d["etymology_text"]+'"')
-    context = word + '\n' + d['etymology_text'] + "\n" + json.dumps(d["etymology_templates"], indent=2)
+    # context = word + '\n' + d['etymology_text'] + "\n" + json.dumps(d["etymology_templates"], indent=2)
 
     # page source reference:
-    src = f"{lang}:{word}"
+    src = child_word
     depth = 1
 
     # Walk history, assuming each derived word is a parent of the previous
     curr_word = child_word
     for t in d["etymology_templates"]:
-        parent_word = parse(curr_word, t, src, depth)
-        if parent_word is None:
-            # Skip this relationship
-            # TODO decide when to reset to child word!
-            pass
-        else:
+        sts, parent_word = parse(curr_word, t, txt, src, depth)
+
+        if sts == STATUS_IGNORE:
+            # skip over
+            continue
+        elif sts == STATUS_CONTINUE:
+            # use new parent as next child
             curr_word = parent_word
             depth += 1
+        elif sts == STATUS_ERR:
+            # Stop
+            break
+        elif sts == STATUS_STOP:
+            # Start from ultimate child again, but keep iterating depth to indicate lack of confidence
+            curr_word = child_word
+            depth += 1
+        else:
+            raise Exception(f"Unexpected parse status: {sts}")
 
 print("Unknown langs: "+str(unknown_langs))
