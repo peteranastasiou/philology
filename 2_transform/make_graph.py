@@ -16,9 +16,14 @@ driver = GraphDatabase.driver(URI, auth=AUTH)
 driver.verify_connectivity()
 driver.verify_authentication()
 
+# count lines
+with open("relationships.json", "rb") as f:
+    num_lines = sum(1 for _ in f)
+
+# iterate over lines, punching them into neo4j
 in_file = open("relationships.json")
 
-for line in tqdm(in_file):
+for line in tqdm(in_file, total=num_lines):
     # Grab json from line
     d: dict = json.loads(line)
     child = d["child_word"]
@@ -65,5 +70,3 @@ for line in tqdm(in_file):
         source_depth=depth,
         relationship=relationship
     )
-
-    exit(0)

@@ -1,0 +1,44 @@
+BRAINSTORMING APPROACHES:
+
+search for top 10,000 perhaps 100,000 words and construct graph
+
+start with PIE roots and iterate linked pages
+e.g. https://www.etymonline.com/word/*angh-/related
+
+walk all over the site, pulling as much as possible
+
+----------------------------------------
+
+APPROACH #1:
+  STAGE #1:
+    search the top 10,000 words
+    scrape and form a set of the ultimate roots
+  STAGE #2
+    from the ultimate roots, search and get all other decendants too
+
+PARSING: [] means verbatim, () optional
+Etymonline:
+DATE[,] ["]DEFN["] (EXTRA,) [from]Language /word/  ....
+
+APPROACH #2:
+    scrape wiktionary XML
+
+Wiktionary:
+([F/from] Language /word/ (defn)[,] )*
+Sometimes use + to indicate joining of parts
+
+
+APPROACH #3:
+    Use an API e.g.
+    https://developer.oxforddictionaries.com/
+        - looks paid and not etym focused
+
+
+APPROACH #4:
+    wordnet http://etym.org/
+    search: http://www.lexvo.com/
+        - provides etym links as "derived from" or "etymology"
+
+
+STORAGE:
+SQL?

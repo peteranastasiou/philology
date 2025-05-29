@@ -1,0 +1,60 @@
+TODO:
+key: x=done, ...=in progress, !=skip for now, come back to
+
+ [x]- 1. extract and filter:
+    [x]- filter out 1 character words, except for i and a
+    [x]- filter down to top 100,000 english words
+
+ [!]- 1b. Exploration
+    [!]- investigate usage of [m] and [l]. can ignore?
+    [!]- investigate how to disambiguate homonyms - [id]?
+
+ [...]- 2. try to extract etmy with templates*:
+    [x]- form a mapping from lang code to lang name using Wiktionary:List_of_languages
+    [x]- use Wiktionary:Templates#Etymology to filter and parse etymology templates
+      [x]- extract inline attributes
+    [!]- check direction of derivations doesn't go backwards in time - indicates a ambiguous sequence of templates (forking).
+      [!]- associate each rule with a time frame/ time code?
+      [!]- OR parse etym text split on /\n *\*/
+    [...]- list word aliases e.g. voiz, voys, voice:xno for voice:en#noun
+    [ ]- output to json list of relationships
+    [!]- associate most likely word, highlight ambiguous cases
+    [ ]- output to neo4j
+      [ ] - make neo4j docker persistent
+    [ ]- transform from neo4j to cognate cluster raw files
+      [ ]- simplification: could only include pie rooted clusters
+
+assumptions for now:
+  - words are disambiguated by merely "term:lang", ignore pos, id etc for now
+
+issues:
+  e.g. bat:noun can be two or more things
+  e.g. born:en#verb has an "equivalent to" in etytext which is not linear history
+
+ [ ]- 3. display (simple prototype):
+    [ ]- simple css tree display
+
+ [ ]- 4. include all langs:
+   [ ]- apply logic to all languages
+   [ ]- identify filter cognate clusters by ones containing english words
+   []
+
+ [ ]- 5. improve etym tracing:
+   [ ]- deduce whether "bor" is inline or parallel
+
+ [ ]- 6. polish site:
+   [ ]- radial tree display
+      [ ]- pre-render node locations
+
+ [ ]- 7. add metadata like definition and when word first used:
+
+Fallbacks:
+ - * try to extract from text instead of templates
+   - needed for e.g. bor?
+
+
+
+Initial capability:
+ - combine all etymologies into a tree
+ - focus on words with pie roots, create a tree for each
+ - pre-render node locations
